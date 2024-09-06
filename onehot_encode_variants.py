@@ -37,58 +37,43 @@ class onehot_variants:
         vcf_header = ['chr', 'pos', 'id', 'ref', 'alt', 'qual', 'filter', 'info', 'format', 'sample']
         for n_vcf, vcf in enumerate(vcf_files):
             
+            if (n_vcf + 1) % 10 == 0 and n_vcf > 0:
+
+                print(f'Processed {n_vcf + 1} / {len(vcf_files)} vcf files', end='\r')
+            
             data = pd.read_csv(vcf, sep='\t', comment='#', header=None, names=vcf_header)
             
-            for n_var, var in data.iterrows():
-                
-                chrom, pos, _, ref, alt, qual, filt, info, _, _ = var
-                
-                if len(ref) == len(alt):
-                    
-                    var_type = 'substitution'
-                    
-                elif len(ref) > len(alt):
-                    
-                    var_type = 'deletion'
-                
-                elif len(ref) < len(alt):
-                    
-                    var_type = 'insertion'
-                
-                else:
-                    
-                    var_type = ''
-                
-                # Get annotation
-                try:
-                    
-                    ann = [i for i in info.split(';') if i.startswith('ANN=')][0]
-                
-                except:
-                    
-                    ann = ''
-                
-                if filt.lower() == 'pass':
-                    
-                    var_id = f'{chrom}_{pos}_{ref}_{alt}'
-                    
-                    if var_id in variants_info['id']:
-                        
-                        rows.append(variants_info['id'].index(var_id))
-                        cols.append(n_vcf)
-                    
-                    else:
-                        
-                        rows.append(len(variants_info['id']))
-                        cols.append(n_vcf)
-                        
-                        variants_info['id'].append(var_id)
-                        variants_info['type'].append(var_type)
-                        variants_info['chr'].append(chrom)
-                        variants_info['pos'].append(pos)
-                        variants_info['ref'].append(ref)
-                        variants_info['alt'].append(alt)
-                        variants_info['ann'].append(ann)
+            # Filter
+            data = data.loc[data['filter'].isin(['PASS', 'Pass', 'pass', '.']),]
+            
+            # Define variants ids
+            data['var_id'] = data.chr + '_' + data.pos.astype(str) + '_' + data.ref + '_' + data.alt
+            
+            # Define variant type
+            data['var_type'] = ['substitution' if len(ref) == len(alt) else
+                                'deletion' if len(ref) > len(alt) else
+                                'insertion' if len(ref) < len(alt) else
+                                ''
+                                for _,(ref,alt) in data.loc[:, ['ref', 'alt']].iterrows()]
+            
+            # Get annotation
+            data['ann'] = [[i for i in info.split(';') if i.startswith('ANN=')][0] if 'ANN=' in info else
+                           ''
+                           for info in data['info'].values]
+            
+            # Find new variants, then add them to variants_info
+            new_vars = data.loc[~ data.var_id.isin(variants_info['id']), ]
+            variants_info['id'].extend(new_vars.var_id.values)
+            variants_info['type'].extend(new_vars.var_type.values)
+            variants_info['chr'].extend(new_vars.chr.values)
+            variants_info['pos'].extend(new_vars.pos.values)
+            variants_info['ref'].extend(new_vars.ref.values)
+            variants_info['alt'].extend(new_vars.alt.values)
+            variants_info['ann'].extend(new_vars.ann.values)
+            
+            # Update rows and cols lists
+            rows.extend([variants_info['id'].index(var_id) for var_id in data.var_id.values])
+            cols.extend([n_vcf for _ in range(data.shape[0])])
         
         # Convert variants_info to pandas data frame
         self.variants_info = pd.DataFrame(variants_info)
