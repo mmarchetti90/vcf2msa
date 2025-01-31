@@ -1,6 +1,10 @@
 # vcf2msa
 ## Python class for one-hot encoding variants from vcf files, then creating a multiple sequence alignment (MSA) as a PHYLIP file
 
+N.B. Designed for vcf files from single calling, not joint
+
+N.B. Only supports uniploid genomes for now, with the intended use being for bacterial genomes
+
 /// --------------------------------------- //
 
 ### CLASS INIT

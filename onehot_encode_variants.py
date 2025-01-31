@@ -175,7 +175,7 @@ class onehot_variants:
                         if '-' in sample_chroms[var_chr][pos : pos + len(ref)]: # Deletion overlaps with '-' areas in reference, fixing deletion size
                         
                             # Moving along the reference sequence, skipping over '-'
-                            deletion_length = len(ref) - 1
+                            deletion_length = len(ref) - len(alt)
                             count = 1
                             deletion_end = pos + 1
                             while count <= deletion_length:
@@ -276,14 +276,23 @@ class onehot_variants:
                 
                 pos_insertion = insertion_sites.loc[insertion_sites.pos == pos,] # Subset of insertion at site pos
                 
-                max_insertion = max([len(alt) for alt in pos_insertion.alt]) - len(ref) # Longest insertions
-                insertion_len = np.append(insertion_len, max_insertion)
-                
                 best_ref = max([ref for ref in pos_insertion.ref], key=lambda r: len(r)) # Longest reference (should all be length 1, just being careful)
                 
-                chrom_struct[pos : pos + len(best_ref)] = list(best_ref) # Updating chromosome_struct with reference info from variants
+                if pos + len(best_ref) > chrom_length: # Elongate the chromosome due to ref info if pos is at the edge of the chromosome
                 
-                chrom_struct = np.concatenate([chrom_struct[:pos + len(best_ref)], ['-' for _ in range(max_insertion)], chrom_struct[pos + len(best_ref):]]) # Adding spacers for insertion
+                    chrom_struct = np.concatenate([chrom_struct, ['' for _ in range(pos + len(best_ref) - chrom_length)]])
+                    chrom_length = chrom_struct.shape[0]
+                
+                chrom_struct[pos : pos + len(best_ref)] = list(best_ref) # Updating chromosome_struct with reference info from variants
+            
+                max_insertion = max([len(alt) for alt in pos_insertion.alt]) - len(best_ref) # Longest insertions
+                insertion_len = np.append(insertion_len, max_insertion)
+            
+                chrom_struct = np.concatenate([chrom_struct[:pos + len(best_ref)],
+                                               ['-' for _ in range(max_insertion)],
+                                               chrom_struct[pos + len(best_ref):]]) # Adding spacers for insertion
+                
+                chrom_length = chrom_struct.shape[0]
             
             # Adjust variant start positions after adding insertions
             print('Adjusting variant coordinates')
@@ -326,7 +335,7 @@ class onehot_variants:
                         if '-' in chrom_struct[pos : pos + len(ref)]: # Deletion overlaps with '-' areas in reference, fixing deletion size
                         
                             # Moving along the reference sequence, skipping over '-'
-                            deletion_length = len(ref) - 1
+                            deletion_length = len(ref) - len(alt)
                             count = 1
                             deletion_end = pos + 1
                             while count <= deletion_length:
@@ -359,7 +368,7 @@ class onehot_variants:
             chrom_struct[chrom_struct == ''] = 'N'
             
             # Storing info
-            chromosomes_structures[chrom] = [chrom_struct, good_paint]
+            chromosomes_structures[chrom] = [chrom_struct.copy(), good_paint]
             
             var_info_adjusted.append(chrom_vars)
         
